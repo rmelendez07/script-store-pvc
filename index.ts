@@ -3,6 +3,6 @@ import { userQuestion } from "./src/utils/ui";
 require("dotenv").config();
 
 userQuestion(
-  "Write the full path to donwload all the PVC of the environment",
+  "\n\nWrite the full path to donwload all the PVC of the environment, just ENTER if you want to download in a Temp folder",
   downloadFromAzureStorage
 );

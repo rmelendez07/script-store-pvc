@@ -1,6 +1,9 @@
 import path from "path";
 import fs from "fs";
+import * as os from "os"
 import { PagedAsyncIterableIterator } from "@azure/core-paging";
+import { zipPVCDirectory } from "../utils/utils";
+import { uploadPVCToAzureStorage } from "./upload-azure-storage";
 import {
   printSeparator,
   printInformation,
@@ -15,9 +18,8 @@ import {
   DirectoryListFilesAndDirectoriesSegmentResponse,
   ShareDirectoryClient,
 } from "@azure/storage-file-share";
-import { userQuestion } from "../utils/ui";
 
-//const BASE_DIR = 'C:/Users/rmelendez/Desktop/Test PVC';
+const BASE_DIR = path.join(os.tmpdir(), 'pvc-storage-two');
 
 type FileDirListType = PagedAsyncIterableIterator<
 | ({
@@ -30,8 +32,10 @@ DirectoryListFilesAndDirectoriesSegmentResponse
 >;
 
 export const downloadFromAzureStorage = async (
-  baseDir: string
+  baseDir?: string
 ): Promise<void> => {
+  const baseDirPath = baseDir != '' ? baseDir : BASE_DIR;
+  
   try {
     const accountKey = process.env.ACCOUNT_KEY;
     const accountName = process.env.ACCOUNT_NAME;
@@ -40,10 +44,15 @@ export const downloadFromAzureStorage = async (
     const credential = new StorageSharedKeyCredential(accountName, accountKey);
     const serviceClient = new ShareServiceClient(storageURL, credential);
 
-    await iteratePVC(baseDir, serviceClient);
+    createFolderIfTemp(baseDirPath)
+    await iteratePVC(baseDirPath, serviceClient);
 
   } catch (error: unknown) {
     printError((error as Error).message, (error as Error).stack);
+  } finally {
+    if(baseDirPath === BASE_DIR) {
+      fs.rmSync(baseDirPath, { recursive: true })
+    }
   }
 };
 
@@ -72,6 +81,10 @@ const iteratePVC = async (
     await iterateFilesAndDirectory(downloadPath, directoryClient, fileDir);
     i++;
 
+    const zipFile = await zipPVCDirectory(baseDir, downloadPath)
+    await uploadPVCToAzureStorage(share.name, fs.readFileSync(zipFile))
+    fs.rmSync(zipFile, { recursive: true })
+
     printSeparator(false);
   }
   printSuccess(`Total PVC downloaded: ${i}`);
@@ -96,7 +109,7 @@ const downloadFile = async (
 ) => {
   const fileName = path.join(downloadPath, file.name);
 
-  printInformation(`Downloading file called ${fileName} in path ${downloadPath}`);
+  printInformation(`Downloading file called ${file.name} in path ${fileName}`);
   await directoryClient.getFileClient(file.name).downloadToFile(fileName);
   
   if (fs.existsSync(downloadPath)) {
@@ -126,3 +139,7 @@ const downloadDirectory = async (
     fileDir
   );
 };
+
+const createFolderIfTemp = (baseDirPath: string) => {
+  if(baseDirPath === BASE_DIR) fs.mkdirSync(baseDirPath)
+}
