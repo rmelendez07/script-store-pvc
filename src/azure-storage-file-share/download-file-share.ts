@@ -19,7 +19,7 @@ import {
   ShareDirectoryClient,
 } from "@azure/storage-file-share";
 
-const BASE_DIR = path.join(os.tmpdir(), 'pvc-storage-two');
+const BASE_DIR = path.join(os.tmpdir(), 'pvc-storage');
 
 type FileDirListType = PagedAsyncIterableIterator<
 | ({
