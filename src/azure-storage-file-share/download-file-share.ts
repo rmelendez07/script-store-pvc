@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import * as os from "os"
+import { V1PersistentVolumeClaim } from '@kubernetes/client-node'
 import { PagedAsyncIterableIterator } from "@azure/core-paging";
 import { zipPVCDirectory } from "../utils/utils";
 import { uploadPVCToAzureStorage } from "./upload-azure-storage";
@@ -18,6 +19,7 @@ import {
   DirectoryListFilesAndDirectoriesSegmentResponse,
   ShareDirectoryClient,
 } from "@azure/storage-file-share";
+import { getPVCListFromNamespace, getUserIdProjectIdFromPVC } from "./kubernetes-service";
 
 const BASE_DIR = path.join(os.tmpdir(), 'pvc-storage');
 
@@ -44,8 +46,9 @@ export const downloadFromAzureStorage = async (
     const credential = new StorageSharedKeyCredential(accountName, accountKey);
     const serviceClient = new ShareServiceClient(storageURL, credential);
 
+    const pvcList = await getPVCListFromNamespace()
     createFolderIfTemp(baseDirPath)
-    await iteratePVC(baseDirPath, serviceClient);
+    await iteratePVC(baseDirPath, serviceClient, pvcList);
 
   } catch (error: unknown) {
     printError((error as Error).message, (error as Error).stack);
@@ -58,7 +61,8 @@ export const downloadFromAzureStorage = async (
 
 const iteratePVC = async (
   baseDir: string,
-  serviceClient: ShareServiceClient
+  serviceClient: ShareServiceClient,
+  pvcList: V1PersistentVolumeClaim[]
 ): Promise<void> => {
 
   let shareIter = serviceClient.listShares();
@@ -82,7 +86,9 @@ const iteratePVC = async (
     i++;
 
     const zipFile = await zipPVCDirectory(baseDir, downloadPath)
-    await uploadPVCToAzureStorage(share.name, fs.readFileSync(zipFile))
+    const pvcInformation = getUserIdProjectIdFromPVC(pvcList, share.name)
+    const blobName = path.join(pvcInformation.userId, pvcInformation.projectId, share.name)
+    await uploadPVCToAzureStorage(blobName, fs.readFileSync(zipFile))
     fs.rmSync(zipFile, { recursive: true })
 
     printSeparator(false);
@@ -112,7 +118,7 @@ const downloadFile = async (
   printInformation(`Downloading file called ${file.name} in path ${fileName}`);
   await directoryClient.getFileClient(file.name).downloadToFile(fileName);
   
-  if (fs.existsSync(downloadPath)) {
+  if (fs.existsSync(fileName)) {
     printSuccess(`Downloaded successfully the file was called: ${fileName}`);
   } else {
     printError(`Failed while downloading the file was called: ${fileName}`);
