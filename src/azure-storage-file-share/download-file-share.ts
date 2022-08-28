@@ -87,7 +87,10 @@ const iteratePVC = async (
 
     const zipFile = await zipPVCDirectory(baseDir, downloadPath)
     const pvcInformation = getUserIdProjectIdFromPVC(pvcList, share.name)
-    const blobName = path.join(pvcInformation.userId, pvcInformation.projectId, share.name)
+    let blobName = path.join('file-share-with-no-pvc', share.name)
+    if(pvcInformation.pvcFound){
+      blobName = path.join(pvcInformation.userId, pvcInformation.projectId, share.name)
+    }
     await uploadPVCToAzureStorage(blobName, fs.readFileSync(zipFile))
     fs.rmSync(zipFile, { recursive: true })
 
