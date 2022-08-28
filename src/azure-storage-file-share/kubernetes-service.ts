@@ -10,6 +10,7 @@ export const getPVCListFromNamespace = async (): Promise<k8s.V1PersistentVolumeC
     const kc = new k8s.KubeConfig();
     kc.loadFromDefault();
     const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+    // Read the README.md file to know the value of this env variable AKS_PVC_NAMESPACE
     const res = await k8sApi.listNamespacedPersistentVolumeClaim(process.env.AKS_PVC_NAMESPACE)    
     
     return res.body.items
